@@ -39,7 +39,6 @@ func main() {
 }
 
 func (cmpm *ComptimeModifier) Modify(f *dst.File, dec *decorator.Decorator, res *decorator.Restorer) *dst.File {
-
 	newFuncs := collectFuncs(f, res)
 	existingFuncs := Restore(FuncsPath)
 	funcs := Merge(existingFuncs, newFuncs)
@@ -61,16 +60,7 @@ func (cmpm *ComptimeModifier) Modify(f *dst.File, dec *decorator.Decorator, res 
 						for i, expr := range constSpec.Values {
 							if lit, ok := expr.(*dst.BasicLit); ok {
 								name := constSpec.Names[i].Name
-								var constType string
-								switch lit.Kind {
-								case token.STRING:
-									constType = "string"
-								case token.INT:
-									constType = "int"
-								default:
-									constType = "string"
-								}
-								lhs := fmt.Sprintf("const %s %s", name, constType)
+								lhs := fmt.Sprintf("const %s", name)
 								consts[lhs] = lit.Value
 							}
 						}
