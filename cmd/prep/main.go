@@ -39,6 +39,7 @@ func main() {
 }
 
 func (cmpm *ComptimeModifier) Modify(f *dst.File, dec *decorator.Decorator, res *decorator.Restorer) *dst.File {
+
 	newFuncs := collectFuncs(f, res)
 	existingFuncs := Restore(FuncsPath)
 	funcs := Merge(existingFuncs, newFuncs)
@@ -48,6 +49,40 @@ func (cmpm *ComptimeModifier) Modify(f *dst.File, dec *decorator.Decorator, res 
 	existingVars := Restore(VarsPath)
 	vars := Merge(existingVars, newVars)
 	Dump(vars, VarsPath)
+
+	consts := make(map[string]string)
+
+	for _, decl := range f.Decls {
+		if genDecl, ok := decl.(*dst.GenDecl); ok {
+			if genDecl.Tok == token.CONST {
+				specs := genDecl.Specs
+				for _, spec := range specs {
+					if constSpec, ok := spec.(*dst.ValueSpec); ok {
+						for i, expr := range constSpec.Values {
+							if lit, ok := expr.(*dst.BasicLit); ok {
+								name := constSpec.Names[i].Name
+								var constType string
+								switch lit.Kind {
+								case token.STRING:
+									constType = "string"
+								case token.INT:
+									constType = "int"
+								default:
+									constType = "string"
+								}
+								lhs := fmt.Sprintf("const %s %s", name, constType)
+								consts[lhs] = lit.Value
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	var constStr string
+	for k, v := range consts {
+		constStr += fmt.Sprintf("%s = %s\n", k, v)
+	}
 
 	var parentFunc string
 	dstutil.Apply(f, func(c *dstutil.Cursor) bool {
@@ -119,6 +154,8 @@ func (cmpm *ComptimeModifier) Modify(f *dst.File, dec *decorator.Decorator, res 
 			panic(fmt.Sprintf("cannot find func '%s' to eval", funcToCall))
 		}
 
+		funcIdx := strings.Index(fn, "func")
+		fn = strings.Join([]string{fn[:funcIdx], constStr, fn[funcIdx:]}, "\n")
 		_, err := cmpm.intr.Eval(fn)
 		if err != nil {
 			panic(fmt.Sprintf("cannot eval: %s", err))
